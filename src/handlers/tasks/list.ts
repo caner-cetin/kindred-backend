@@ -17,7 +17,16 @@ export const listTasksHandler = async ({
 
   try {
     const userId = Number(user.id!);
-    const { status, priority, assignee } = query;
+    const {
+      status,
+      priority,
+      assignee,
+      title,
+      due_date_start,
+      due_date_end,
+      created_at_start,
+      created_at_end,
+    } = query;
 
     let query_builder = db
       .selectFrom("tasks")
@@ -69,6 +78,26 @@ export const listTasksHandler = async ({
       query_builder = query_builder.where("tasks.creator_id", "=", userId);
     }
 
+    if (title) {
+      query_builder = query_builder.where("tasks.title", "like", `%${title}%`);
+    }
+
+    if (due_date_start) {
+      query_builder = query_builder.where("tasks.due_date", ">=", due_date_start);
+    }
+
+    if (due_date_end) {
+      query_builder = query_builder.where("tasks.due_date", "<=", due_date_end);
+    }
+
+    if (created_at_start) {
+      query_builder = query_builder.where("tasks.created_at", ">=", created_at_start);
+    }
+
+    if (created_at_end) {
+      query_builder = query_builder.where("tasks.created_at", "<=", created_at_end);
+    }
+
     // Order by priority level (higher level = higher priority) and then by created date
     const tasks = await query_builder
       .orderBy("priorities.level", "desc")
@@ -115,6 +144,11 @@ export const listTasksSchema = {
           t.Literal("created"),
         ])
       ),
+      title: t.Optional(t.String()),
+      due_date_start: t.Optional(t.String()),
+      due_date_end: t.Optional(t.String()),
+      created_at_start: t.Optional(t.String()),
+      created_at_end: t.Optional(t.String()),
     })
   ),
 };
