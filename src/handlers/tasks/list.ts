@@ -1,6 +1,6 @@
 import { t } from "elysia";
 import { sql } from "kysely";
-import { AuthContext } from "../../types/auth";
+import type { AuthContext } from "../../types/auth";
 import { Messages } from "../../constants/messages";
 
 export const listTasksHandler = async ({

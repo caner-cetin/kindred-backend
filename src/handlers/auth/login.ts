@@ -1,7 +1,7 @@
 import { t } from "elysia";
-import { Users } from "../../db/db.d";
+import type { Users } from "../../db/db.d";
 import bcrypt from "bcrypt";
-import { AuthContext, LoginBody } from "../../types/auth";
+import type { AuthContext, LoginBody } from "../../types/auth";
 import { generateTokens, AUTH_CONFIG } from "../../config/auth";
 
 export const loginHandler = async ({

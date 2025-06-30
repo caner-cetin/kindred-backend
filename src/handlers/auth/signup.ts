@@ -1,6 +1,6 @@
 import { t } from "elysia";
 import bcrypt from "bcrypt";
-import { AuthContext, SignupBody } from "../../types/auth";
+import type { AuthContext, SignupBody } from "../../types/auth";
 import { generateTokens, AUTH_CONFIG } from "../../config/auth";
 
 export const signupHandler = async ({

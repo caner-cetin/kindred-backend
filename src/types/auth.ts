@@ -1,5 +1,5 @@
-import { Context } from "elysia";
-import { DB, Users } from "../db/db.d";
+import type { Context } from "elysia";
+import type { DB, Users } from "../db/db.d";
 import { Kysely } from "kysely";
 
 export interface AuthContext extends Context {

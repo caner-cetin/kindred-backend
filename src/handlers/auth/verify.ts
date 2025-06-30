@@ -1,7 +1,7 @@
 import { Kysely } from "kysely";
-import { DB } from "../../db/db.d";
+import type { DB } from "../../db/db.d";
 import jwt from "jsonwebtoken";
-import { JwtPayload } from "../../types/auth";
+import type { JwtPayload } from "../../types/auth";
 import { AUTH_CONFIG } from "../../config/auth";
 
 export const verifyAccessToken = async (token: string, db: Kysely<DB>) => {

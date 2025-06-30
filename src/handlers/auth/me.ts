@@ -1,4 +1,4 @@
-import { MeContext } from "../../types/auth";
+import type { MeContext } from "../../types/auth";
 
 export const meHandler = ({ set, user, headers }: MeContext) => {
   const authHeader = headers["authorization"];

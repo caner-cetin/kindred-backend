@@ -1,5 +1,5 @@
 import { t } from "elysia";
-import { AuthContext } from "../../types/auth";
+import type { AuthContext } from "../../types/auth";
 import { Messages } from "../../constants/messages";
 
 export interface UpdateTaskStatusBody {
