@@ -2,17 +2,15 @@ import { describe, it, expect, beforeAll } from "bun:test";
 import { App, createApp } from "../src/index";
 import { treaty } from "@elysiajs/eden";
 import { Messages } from "../src/constants/messages";
+import { Tasks } from "../src/db/db";
 
+const api = treaty(await createApp(":memory:"));
 describe("Tasks", () => {
-  let api: any;
   let userToken: string;
   let secondUserToken: string;
   let taskId: number;
 
   beforeAll(async () => {
-    const app = await createApp(":memory:");
-    api = treaty(app);
-
     // Create first user and get token
     const { data: userData } = await api.signup.post({
       username: "taskuser",
@@ -20,7 +18,10 @@ describe("Tasks", () => {
       email: "task@example.com",
       fullName: "Task User",
     });
-    userToken = userData?.accessToken;
+    expect(userData).not.toBeNull();
+    expect(userData?.accessToken).not.toBeNull();
+    expect(userData?.accessToken).toBeDefined();
+    userToken = userData!.accessToken!;
 
     // Create second user for permission testing
     const { data: secondUserData } = await api.signup.post({
@@ -29,7 +30,10 @@ describe("Tasks", () => {
       email: "other@example.com",
       fullName: "Other User",
     });
-    secondUserToken = secondUserData?.accessToken;
+    expect(secondUserData).not.toBeNull();
+    expect(secondUserData?.accessToken).not.toBeNull();
+    expect(secondUserData?.accessToken).toBeDefined();
+    secondUserToken = secondUserData!.accessToken!;
   });
 
   describe("GET /tasks/metadata", () => {
@@ -41,17 +45,19 @@ describe("Tasks", () => {
       });
 
       expect(status).toEqual(200);
+      expect(data).not.toBeNull();
       expect(data).toHaveProperty("priorities");
       expect(data).toHaveProperty("statuses");
-      expect(data.priorities).toHaveLength(4); // Low, Medium, High, Critical
-      expect(data.statuses).toHaveLength(3); // To Do, In Progress, Completed
+      expect(data!.priorities).toHaveLength(4); // Low, Medium, High, Critical
+      expect(data!.statuses).toHaveLength(3); // To Do, In Progress, Completed
     });
 
     it("should require authentication for metadata", async () => {
       const { error, status } = await api.tasks.metadata.get();
 
       expect(status).toEqual(401);
-      expect(error?.value?.message).toEqual(Messages.AUTH_REQUIRED);
+      expect(error).not.toBeNull();
+      expect((error as any)?.value?.message).toEqual(Messages.AUTH_REQUIRED);
     });
   });
 
@@ -69,11 +75,15 @@ describe("Tasks", () => {
       );
 
       expect(status).toEqual(200);
+      expect(data).not.toBeNull();
       expect(data).toHaveProperty("task");
-      expect(data.task.title).toEqual("Test Task");
-      expect(data.message).toEqual(Messages.TASK_CREATED_SUCCESS);
+      expect(data!.task).toBeDefined();
+      expect(data!.task!.title).toEqual("Test Task");
+      expect(data!.message).toEqual(Messages.TASK_CREATED_SUCCESS);
 
-      taskId = data.task.id; // Store for later tests
+      expect(data!.task!.id).not.toBeNull();
+      expect(data!.task!.id).toBeDefined();
+      taskId = data!.task!.id!; // Store for later tests
     });
 
     it("should create a task with all fields", async () => {
@@ -92,8 +102,10 @@ describe("Tasks", () => {
       );
 
       expect(status).toEqual(200);
-      expect(data.task.title).toEqual("Complete Task");
-      expect(data.task.description).toEqual("A task with all fields filled");
+      expect(data).not.toBeNull();
+      expect(data!.task).toBeDefined();
+      expect(data!.task!.title).toEqual("Complete Task");
+      expect(data!.task!.description).toEqual("A task with all fields filled");
     });
 
     it("should require authentication to create task", async () => {
@@ -102,14 +114,13 @@ describe("Tasks", () => {
       });
 
       expect(status).toEqual(401);
-      expect(error?.value?.message).toEqual(Messages.AUTH_REQUIRED);
+      expect(error).not.toBeNull();
+      expect((error as any)?.value?.message).toEqual(Messages.AUTH_REQUIRED);
     });
 
     it("should validate required title field", async () => {
       const { error, status } = await api.tasks.post(
-        {
-          description: "Task without title",
-        },
+        {} as any, // Intentionally invalid payload
         {
           headers: {
             Authorization: `Bearer ${userToken}`,
@@ -158,16 +169,19 @@ describe("Tasks", () => {
   describe("GET /tasks", () => {
     it("should list user's tasks", async () => {
       const { data, status } = await api.tasks.get({
+        query: {},
         headers: {
           Authorization: `Bearer ${userToken}`,
         },
       });
 
       expect(status).toEqual(200);
+      expect(data).not.toBeNull();
       expect(data).toHaveProperty("tasks");
       expect(data).toHaveProperty("stats");
-      expect(Array.isArray(data.tasks)).toBe(true);
-      expect(data.tasks.length).toBeGreaterThan(0);
+      expect(Array.isArray(data!.tasks)).toBe(true);
+      expect(data!.tasks).toBeDefined();
+      expect(data!.tasks!.length).toBeGreaterThan(0);
     });
 
     it("should filter tasks by status", async () => {
@@ -179,7 +193,9 @@ describe("Tasks", () => {
       });
 
       expect(status).toEqual(200);
-      expect(data.tasks.every((task: any) => task.status === "To Do")).toBe(true);
+      expect(data).not.toBeNull();
+      expect(data!.tasks).toBeDefined();
+      expect(data!.tasks!.every((task: any) => task.status === "To Do")).toBe(true);
     });
 
     it("should filter tasks by assignee filter", async () => {
@@ -191,14 +207,17 @@ describe("Tasks", () => {
       });
 
       expect(status).toEqual(200);
-      expect(data.tasks.every((task: any) => task.creator_username === "taskuser")).toBe(true);
+      expect(data).not.toBeNull();
+      expect(data!.tasks).toBeDefined();
+      expect(data!.tasks!.every((task: any) => task.creator_username === "taskuser")).toBe(true);
     });
 
-    it("should filter tasks by title", async () => {
-      // Create a task with a unique title for this test
-      const { data: createdTaskData } = await api.tasks.post(
+    it("should filter tasks by search term in title or description", async () => {
+      // Create a task with a specific title and description for searching
+      await api.tasks.post(
         {
-          title: "Unique Task Title for Filtering",
+          title: "Searchable Task Title",
+          description: "This task has a searchable description.",
         },
         {
           headers: {
@@ -208,15 +227,17 @@ describe("Tasks", () => {
       );
 
       const { data, status } = await api.tasks.get({
-        query: { title: "Unique Task Title" },
+        query: { search: "searchable" },
         headers: {
           Authorization: `Bearer ${userToken}`,
         },
       });
 
       expect(status).toEqual(200);
-      expect(data.tasks.length).toBeGreaterThan(0);
-      expect(data.tasks.every((task: any) => task.title.includes("Unique Task Title"))).toBe(true);
+      expect(data).not.toBeNull();
+      expect(data!.tasks).toBeDefined();
+      expect(data!.tasks!.length).toBeGreaterThan(0);
+      expect(data!.tasks!.some((task: any) => task.title.includes("Searchable Task Title"))).toBe(true);
     });
 
     it("should filter tasks by due_date_start and due_date_end", async () => {
@@ -269,10 +290,16 @@ describe("Tasks", () => {
       });
 
       expect(status).toEqual(200);
-      expect(data.tasks.length).toBeGreaterThanOrEqual(2);
-      expect(data.tasks.some((task: any) => task.title === "Task Due Today")).toBe(true);
-      expect(data.tasks.some((task: any) => task.title === "Task Due Tomorrow")).toBe(true);
-      expect(data.tasks.every((task: any) => new Date(task.due_date) >= new Date("2025-06-30T00:00:00Z") && new Date(task.due_date) <= new Date("2025-07-01T23:59:59Z"))).toBe(true);
+      expect(data).not.toBeNull();
+      expect(data!.tasks).toBeDefined();
+      expect(data!.tasks!.length).toBeGreaterThanOrEqual(2);
+      expect(data!.tasks!.some((task: any) => task.title === "Task Due Today")).toBe(true);
+      expect(data!.tasks!.some((task: any) => task.title === "Task Due Tomorrow")).toBe(true);
+      expect(
+        data!.tasks!.every(
+          (task: any) => new Date(task.due_date) >= new Date("2025-06-30T00:00:00Z") && new Date(task.due_date) <= new Date("2025-07-01T23:59:59Z")
+        )
+      ).toBe(true);
     });
 
     it("should filter tasks by created_at_start and created_at_end", async () => {
@@ -288,7 +315,7 @@ describe("Tasks", () => {
         }
       );
       // Simulate a slight delay for distinct creation times
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       const { data: taskBData } = await api.tasks.post(
         {
           title: "Task Created Today",
@@ -305,8 +332,8 @@ describe("Tasks", () => {
       const yesterday = new Date(today);
       yesterday.setDate(today.getDate() - 1);
 
-      const created_at_start = yesterday.toISOString().split('T')[0] + 'T00:00:00Z';
-      const created_at_end = today.toISOString().split('T')[0] + 'T23:59:59Z';
+      const created_at_start = yesterday.toISOString().split("T")[0] + "T00:00:00Z";
+      const created_at_end = today.toISOString().split("T")[0] + "T23:59:59Z";
 
       const { data, status } = await api.tasks.get({
         query: {
@@ -319,23 +346,30 @@ describe("Tasks", () => {
       });
 
       expect(status).toEqual(200);
-      expect(data.tasks.length).toBeGreaterThanOrEqual(2);
-      expect(data.tasks.some((task: any) => task.title === "Task Created Yesterday")).toBe(true);
-      expect(data.tasks.some((task: any) => task.title === "Task Created Today")).toBe(true);
-      expect(data.tasks.every((task: any) => new Date(task.created_at) >= new Date(created_at_start) && new Date(task.created_at) <= new Date(created_at_end))).toBe(true);
+      expect(data).not.toBeNull();
+      expect(data!.tasks).toBeDefined();
+      expect(data!.tasks!.length).toBeGreaterThanOrEqual(2);
+      expect(data!.tasks!.some((task: any) => task.title === "Task Created Yesterday")).toBe(true);
+      expect(data!.tasks!.some((task: any) => task.title === "Task Created Today")).toBe(true);
+      expect(
+        data!.tasks!.every((task: any) => new Date(task.created_at) >= new Date(created_at_start) && new Date(task.created_at) <= new Date(created_at_end))
+      ).toBe(true);
     });
 
     it("should require authentication to list tasks", async () => {
-      const { error, status } = await api.tasks.get();
+      const { error, status } = await api.tasks.get({
+        query: {},
+      });
 
       expect(status).toEqual(401);
-      expect(error?.value?.message).toEqual(Messages.AUTH_REQUIRED);
+      expect(error).not.toBeNull();
+      expect((error as any)?.value?.message).toEqual(Messages.AUTH_REQUIRED);
     });
   });
 
   describe("PUT /tasks/:id", () => {
     it("should update a task", async () => {
-      const { data, status } = await api.tasks[taskId].put(
+      const { data, status } = await api.tasks({ id: taskId }).put(
         {
           title: "Updated Task Title",
           description: "Updated description",
@@ -349,13 +383,15 @@ describe("Tasks", () => {
       );
 
       expect(status).toEqual(200);
-      expect(data.task.title).toEqual("Updated Task Title");
-      expect(data.task.description).toEqual("Updated description");
-      expect(data.message).toEqual(Messages.TASK_UPDATED_SUCCESS);
+      expect(data).not.toBeNull();
+      expect(data!.task).toBeDefined();
+      expect(data!.task!.title).toEqual("Updated Task Title");
+      expect(data!.task!.description).toEqual("Updated description");
+      expect(data!.message).toEqual(Messages.TASK_UPDATED_SUCCESS);
     });
 
     it("should allow partial updates", async () => {
-      const { data, status } = await api.tasks[taskId].put(
+      const { data, status } = await api.tasks({ id: taskId }).put(
         {
           title: "Partially Updated Task",
         },
@@ -367,11 +403,13 @@ describe("Tasks", () => {
       );
 
       expect(status).toEqual(200);
-      expect(data.task.title).toEqual("Partially Updated Task");
+      expect(data).not.toBeNull();
+      expect(data!.task).toBeDefined();
+      expect(data!.task!.title).toEqual("Partially Updated Task");
     });
 
     it("should not allow non-creator/non-assignee to update task", async () => {
-      const { error, status } = await api.tasks[taskId].put(
+      const { error, status } = await api.tasks({ id: taskId }).put(
         {
           title: "Unauthorized Update",
         },
@@ -383,11 +421,12 @@ describe("Tasks", () => {
       );
 
       expect(status).toEqual(403);
-      expect(error?.value?.message).toEqual(Messages.PERMISSION_DENIED);
+      expect(error).not.toBeNull();
+      expect((error as any)?.value?.message).toEqual(Messages.PERMISSION_DENIED);
     });
 
     it("should return 404 for non-existent task", async () => {
-      const { error, status } = await api.tasks["999"].put(
+      const { error, status } = await api.tasks({ id: "999" }).put(
         {
           title: "Non-existent Task",
         },
@@ -399,11 +438,12 @@ describe("Tasks", () => {
       );
 
       expect(status).toEqual(404);
-      expect(error?.value?.message).toEqual(Messages.TASK_NOT_FOUND);
+      expect(error).not.toBeNull();
+      expect((error as any)?.value?.message).toEqual(Messages.TASK_NOT_FOUND);
     });
 
     it("should validate invalid priority in update", async () => {
-      const { error, status } = await api.tasks[taskId].put(
+      const { error, status } = await api.tasks({ id: taskId }).put(
         {
           priority_id: 999,
         },
@@ -415,22 +455,24 @@ describe("Tasks", () => {
       );
 
       expect(status).toEqual(400);
-      expect(error?.value?.message).toEqual(Messages.PRIORITY_NOT_FOUND);
+      expect(error).not.toBeNull();
+      expect((error as any)?.value?.message).toEqual(Messages.PRIORITY_NOT_FOUND);
     });
 
     it("should require authentication to update task", async () => {
-      const { error, status } = await api.tasks[taskId].put({
+      const { error, status } = await api.tasks({ id: taskId }).put({
         title: "Unauthorized Update",
       });
 
       expect(status).toEqual(401);
-      expect(error?.value?.message).toEqual(Messages.AUTH_REQUIRED);
+      expect(error).not.toBeNull();
+      expect((error as any)?.value?.message).toEqual(Messages.AUTH_REQUIRED);
     });
   });
 
   describe("PATCH /tasks/:id/status", () => {
     it("should update task status to In Progress", async () => {
-      const { data, status } = await api.tasks[taskId].status.patch(
+      const { data, status } = await api.tasks({ id: taskId }).status.patch(
         {
           status: "In Progress",
         },
@@ -442,12 +484,13 @@ describe("Tasks", () => {
       );
 
       expect(status).toEqual(200);
-      expect(data.status).toEqual("In Progress");
-      expect(data.message).toEqual(Messages.TASK_STATUS_UPDATED_SUCCESS);
+      expect(data).not.toBeNull();
+      expect(data!.status).toEqual("In Progress");
+      expect(data!.message).toEqual(Messages.TASK_STATUS_UPDATED_SUCCESS);
     });
 
     it("should update task status to Completed", async () => {
-      const { data, status } = await api.tasks[taskId].status.patch(
+      const { data, status } = await api.tasks({ id: taskId }).status.patch(
         {
           status: "Completed",
         },
@@ -459,13 +502,14 @@ describe("Tasks", () => {
       );
 
       expect(status).toEqual(200);
-      expect(data.status).toEqual("Completed");
+      expect(data).not.toBeNull();
+      expect(data!.status).toEqual("Completed");
     });
 
     it("should validate status value", async () => {
-      const { error, status } = await api.tasks[taskId].status.patch(
+      const { error, status } = await api.tasks({ id: taskId }).status.patch(
         {
-          status: "Invalid Status",
+          status: "Invalid Status" as any,
         },
         {
           headers: {
@@ -478,7 +522,7 @@ describe("Tasks", () => {
     });
 
     it("should not allow non-creator/non-assignee to update status", async () => {
-      const { error, status } = await api.tasks[taskId].status.patch(
+      const { error, status } = await api.tasks({ id: taskId }).status.patch(
         {
           status: "To Do",
         },
@@ -490,11 +534,12 @@ describe("Tasks", () => {
       );
 
       expect(status).toEqual(403);
-      expect(error?.value?.message).toEqual(Messages.PERMISSION_DENIED);
+      expect(error).not.toBeNull();
+      expect((error as any)?.value?.message).toEqual(Messages.PERMISSION_DENIED);
     });
 
     it("should return 404 for non-existent task status update", async () => {
-      const { error, status } = await api.tasks["999"].status.patch(
+      const { error, status } = await api.tasks({ id: "999" }).status.patch(
         {
           status: "Completed",
         },
@@ -506,16 +551,18 @@ describe("Tasks", () => {
       );
 
       expect(status).toEqual(404);
-      expect(error?.value?.message).toEqual(Messages.TASK_NOT_FOUND);
+      expect(error).not.toBeNull();
+      expect((error as any)?.value?.message).toEqual(Messages.TASK_NOT_FOUND);
     });
 
     it("should require authentication to update status", async () => {
-      const { error, status } = await api.tasks[taskId].status.patch({
+      const { error, status } = await api.tasks({ id: taskId }).status.patch({
         status: "Completed",
       });
 
       expect(status).toEqual(401);
-      expect(error?.value?.message).toEqual(Messages.AUTH_REQUIRED);
+      expect(error).not.toBeNull();
+      expect((error as any)?.value?.message).toEqual(Messages.AUTH_REQUIRED);
     });
   });
 
@@ -533,29 +580,34 @@ describe("Tasks", () => {
           },
         }
       );
-      deleteTaskId = data.task.id;
+      expect(data).not.toBeNull();
+      expect(data!.task).toBeDefined();
+      expect(data!.task!.id).not.toBeNull();
+      deleteTaskId = data!.task!.id!;
     });
 
     it("should delete a task", async () => {
-      const { data, status } = await api.tasks[deleteTaskId].delete(undefined, {
+      const { data, status } = await api.tasks({ id: deleteTaskId }).delete(undefined, {
         headers: {
           Authorization: `Bearer ${userToken}`,
         },
       });
 
       expect(status).toEqual(200);
-      expect(data.message).toEqual(Messages.TASK_DELETED_SUCCESS);
+      expect(data).not.toBeNull();
+      expect(data!.message).toEqual(Messages.TASK_DELETED_SUCCESS);
     });
 
     it("should return 404 for already deleted task", async () => {
-      const { error, status } = await api.tasks[deleteTaskId].delete(undefined, {
+      const { error, status } = await api.tasks({ id: deleteTaskId }).delete(undefined, {
         headers: {
           Authorization: `Bearer ${userToken}`,
         },
       });
 
       expect(status).toEqual(404);
-      expect(error?.value?.message).toEqual(Messages.TASK_NOT_FOUND);
+      expect(error).not.toBeNull();
+      expect((error as any)?.value?.message).toEqual(Messages.TASK_NOT_FOUND);
     });
 
     it("should not allow non-creator to delete task", async () => {
@@ -571,33 +623,40 @@ describe("Tasks", () => {
         }
       );
 
+      expect(createData).not.toBeNull();
+      expect(createData!.task).toBeDefined();
+      expect(createData!.task!.id).not.toBeNull();
+
       // Try to delete with second user
-      const { error, status } = await api.tasks[createData.task.id].delete(undefined, {
+      const { error, status } = await api.tasks({ id: createData!.task!.id! }).delete(undefined, {
         headers: {
           Authorization: `Bearer ${secondUserToken}`,
         },
       });
 
       expect(status).toEqual(403);
-      expect(error?.value?.message).toEqual(Messages.TASK_DELETE_CREATOR_ONLY);
+      expect(error).not.toBeNull();
+      expect((error as any)?.value?.message).toEqual(Messages.TASK_DELETE_CREATOR_ONLY);
     });
 
     it("should return 404 for non-existent task deletion", async () => {
-      const { error, status } = await api.tasks["999"].delete(undefined, {
+      const { error, status } = await api.tasks({ id: "999" }).delete(undefined, {
         headers: {
           Authorization: `Bearer ${userToken}`,
         },
       });
 
       expect(status).toEqual(404);
-      expect(error?.value?.message).toEqual(Messages.TASK_NOT_FOUND);
+      expect(error).not.toBeNull();
+      expect((error as any)?.value?.message).toEqual(Messages.TASK_NOT_FOUND);
     });
 
     it("should require authentication to delete task", async () => {
-      const { error, status } = await api.tasks[taskId].delete();
+      const { error, status } = await api.tasks({ id: taskId }).delete();
 
       expect(status).toEqual(401);
-      expect(error?.value?.message).toEqual(Messages.AUTH_REQUIRED);
+      expect(error).not.toBeNull();
+      expect((error as any)?.value?.message).toEqual(Messages.AUTH_REQUIRED);
     });
   });
 
@@ -612,11 +671,14 @@ describe("Tasks", () => {
         },
       });
 
+      expect(secondUserData).not.toBeNull();
+      expect(secondUserData!.id).toBeDefined();
+
       const { data, status } = await api.tasks.post(
         {
           title: "Assigned Task",
           description: "Task assigned to another user",
-          assignee_id: secondUserData.id,
+          assignee_id: secondUserData!.id as unknown as number,
         },
         {
           headers: {
@@ -626,11 +688,14 @@ describe("Tasks", () => {
       );
 
       expect(status).toEqual(200);
-      assignedTaskId = data.task.id;
+      expect(data).not.toBeNull();
+      expect(data!.task).toBeDefined();
+      expect(data!.task!.id).not.toBeNull();
+      assignedTaskId = data!.task!.id!;
     });
 
     it("should allow assignee to update assigned task", async () => {
-      const { data, status } = await api.tasks[assignedTaskId].put(
+      const { data, status } = await api.tasks({ id: assignedTaskId }).put(
         {
           description: "Updated by assignee",
         },
@@ -642,11 +707,13 @@ describe("Tasks", () => {
       );
 
       expect(status).toEqual(200);
-      expect(data.task.description).toEqual("Updated by assignee");
+      expect(data).not.toBeNull();
+      expect(data!.task).toBeDefined();
+      expect(data!.task!.description).toEqual("Updated by assignee");
     });
 
     it("should allow assignee to update task status", async () => {
-      const { data, status } = await api.tasks[assignedTaskId].status.patch(
+      const { data, status } = await api.tasks({ id: assignedTaskId }).status.patch(
         {
           status: "In Progress",
         },
@@ -658,37 +725,44 @@ describe("Tasks", () => {
       );
 
       expect(status).toEqual(200);
-      expect(data.status).toEqual("In Progress");
+      expect(data).not.toBeNull();
+      expect(data!.status).toEqual("In Progress");
     });
 
     it("should show assigned tasks in assignee's task list", async () => {
       const { data, status } = await api.tasks.get({
+        query: {},
         headers: {
           Authorization: `Bearer ${secondUserToken}`,
         },
       });
 
       expect(status).toEqual(200);
-      const assignedTask = data.tasks.find((task: any) => task.id === assignedTaskId);
+      expect(data).not.toBeNull();
+      expect(data!.tasks).toBeDefined();
+      const assignedTask = data!.tasks!.find((task: any) => task.id === assignedTaskId);
       expect(assignedTask).toBeDefined();
-      expect(assignedTask.assignee_username).toEqual("otheruser");
+      expect(assignedTask!.assignee_username).toEqual("otheruser");
     });
   });
 
   describe("Task Statistics", () => {
     it("should return task statistics with task list", async () => {
       const { data, status } = await api.tasks.get({
+        query: {},
         headers: {
           Authorization: `Bearer ${userToken}`,
         },
       });
 
       expect(status).toEqual(200);
+      expect(data).not.toBeNull();
       expect(data).toHaveProperty("stats");
-      expect(typeof data.stats).toBe("object");
+      expect(typeof data!.stats).toBe("object");
 
       // Should have counts for different statuses
-      const statsKeys = Object.keys(data.stats);
+      expect(data!.stats).toBeDefined();
+      const statsKeys = Object.keys(data!.stats!);
       expect(statsKeys.length).toBeGreaterThan(0);
     });
   });
