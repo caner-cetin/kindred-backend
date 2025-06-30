@@ -1,6 +1,7 @@
 import { t } from "elysia";
 import { type AuthContext } from "../../types/auth";
 import { Messages } from "../../constants/messages";
+import { broadcastTaskEvent } from "../../types/websocket";
 
 export interface CreateTaskBody {
   title: string;
@@ -85,6 +86,43 @@ export const createTaskHandler = async ({
         "updated_at",
       ])
       .executeTakeFirstOrThrow();
+
+    // Get full task data with related info for WebSocket broadcast
+    const fullTask = await db
+      .selectFrom("tasks")
+      .leftJoin("users as creator", "tasks.creator_id", "creator.id")
+      .leftJoin("users as assignee", "tasks.assignee_id", "assignee.id")
+      .leftJoin("statuses", "tasks.status_id", "statuses.id")
+      .leftJoin("priorities", "tasks.priority_id", "priorities.id")
+      .select([
+        "tasks.id",
+        "tasks.title",
+        "tasks.description",
+        "tasks.due_date",
+        "tasks.created_at",
+        "tasks.updated_at",
+        "tasks.creator_id",
+        "tasks.assignee_id",
+        "creator.username as creator_username",
+        "assignee.username as assignee_username",
+        "statuses.name as status",
+        "priorities.name as priority",
+      ])
+      .where("tasks.id", "=", Number(newTask.id!))
+      .executeTakeFirst();
+
+    if (fullTask) {
+      broadcastTaskEvent(
+        {
+          type: "TASK_CREATED",
+          taskId: Number(fullTask.id!),
+          task: fullTask,
+          userId: Number(user.id!),
+          timestamp: new Date().toISOString(),
+        },
+        fullTask
+      );
+    }
 
     return {
       message: Messages.TASK_CREATED_SUCCESS,

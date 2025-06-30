@@ -17,9 +17,10 @@ import { deleteTaskHandler, deleteTaskSchema } from "./handlers/tasks/delete";
 import { getTaskMetadataHandler } from "./handlers/tasks/metadata";
 import { Kysely } from "kysely";
 import Database from "bun:sqlite";
-import { DB } from "./db/db.d";
+import type { DB } from "./db/db.d";
 import { BunSqliteDialect } from "kysely-bun-sqlite";
 import { swagger } from "@elysiajs/swagger";
+import { connectedUsers } from "./types/websocket";
 
 export const createApp = async (dbPath?: string) => {
   const actualDbPath =
@@ -63,17 +64,57 @@ export const createApp = async (dbPath?: string) => {
     .get("/tasks/metadata", getTaskMetadataHandler)
     .put("/tasks/:id", updateTaskHandler, updateTaskSchema)
     .patch("/tasks/:id/status", updateTaskStatusHandler, updateTaskStatusSchema)
-    .delete("/tasks/:id", deleteTaskHandler, deleteTaskSchema);
+    .delete("/tasks/:id", deleteTaskHandler, deleteTaskSchema)
+    .ws("/ws", {
+      message: async (ws, message) => {
+        try {
+          const data = message as { type: string; token?: string };
+          
+          // Handle authentication for WebSocket
+          if (data.type === "auth" && data.token) {
+            const user = await verifyAccessToken(data.token, db);
+            if (user) {
+              connectedUsers.set(user.id, {
+                id: user.id,
+                username: user.username,
+                ws: ws
+              });
+              ws.send(JSON.stringify({ 
+                type: "auth", 
+                status: "authenticated", 
+                userId: user.id 
+              }));
+            } else {
+              ws.send(JSON.stringify({ type: "auth", status: "failed" }));
+              ws.close();
+            }
+          }
+        } catch (error) {
+          console.error("WebSocket message error:", error);
+        }
+      },
+      close: (ws) => {
+        // Remove user from connected users when they disconnect
+        for (const [userId, userData] of connectedUsers.entries()) {
+          if (userData.ws === ws) {
+            connectedUsers.delete(userId);
+            break;
+          }
+        }
+      },
+      open: () => {
+        // WebSocket connection opened
+      }
+    });
 
   return app;
 };
 
 if (import.meta.main) {
   const app = await createApp();
-  app.listen(process.env.PORT || 3000);
-  console.log(
-    `Elysia is running at http://localhost:${process.env.PORT || 3000}`
-  );
+  const port = process.env.PORT || 3000;
+  
+  app.listen(port);
 }
 
 export type App = Awaited<ReturnType<typeof createApp>>;
