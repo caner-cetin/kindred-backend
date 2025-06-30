@@ -6,6 +6,15 @@ import { loginHandler, loginSchema } from "./handlers/auth/login";
 import { refreshHandler } from "./handlers/auth/refresh";
 import { verifyAccessToken } from "./handlers/auth/verify";
 import { meHandler } from "./handlers/auth/me";
+import { createTaskHandler, createTaskSchema } from "./handlers/tasks/create";
+import { updateTaskHandler, updateTaskSchema } from "./handlers/tasks/update";
+import {
+  updateTaskStatusHandler,
+  updateTaskStatusSchema,
+} from "./handlers/tasks/status";
+import { listTasksHandler, listTasksSchema } from "./handlers/tasks/list";
+import { deleteTaskHandler, deleteTaskSchema } from "./handlers/tasks/delete";
+import { getTaskMetadataHandler } from "./handlers/tasks/metadata";
 import { Kysely } from "kysely";
 import Database from "bun:sqlite";
 import { DB } from "./db/db.d";
@@ -47,7 +56,13 @@ export const createApp = async (dbPath?: string) => {
     .post("/signup", signupHandler, signupSchema)
     .post("/login", loginHandler, loginSchema)
     .post("/refresh", refreshHandler)
-    .get("/me", meHandler);
+    .get("/me", meHandler)
+    .post("/tasks", createTaskHandler, createTaskSchema)
+    .get("/tasks", listTasksHandler, listTasksSchema)
+    .get("/tasks/metadata", getTaskMetadataHandler)
+    .put("/tasks/:id", updateTaskHandler, updateTaskSchema)
+    .patch("/tasks/:id/status", updateTaskStatusHandler, updateTaskStatusSchema)
+    .delete("/tasks/:id", deleteTaskHandler, deleteTaskSchema);
 
   return app;
 };
@@ -56,8 +71,8 @@ if (import.meta.main) {
   const app = await createApp();
   app.listen(process.env.PORT || 3000);
   console.log(
-    `Elysia is running at http://localhost:${process.env.PORT || 3000}`,
+    `Elysia is running at http://localhost:${process.env.PORT || 3000}`
   );
 }
 
-export type App = ReturnType<typeof createApp>;
+export type App = Awaited<ReturnType<typeof createApp>>;

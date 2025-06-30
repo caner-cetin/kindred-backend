@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeAll } from "bun:test";
 import { App, createApp } from "../src/index";
 import { treaty } from "@elysiajs/eden";
-import Elysia from "elysia";
 
-describe("Authentication Endpoints", () => {
+describe("Auth", () => {
   let api: any;
 
   beforeAll(async () => {
