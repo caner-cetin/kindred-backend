@@ -1,14 +1,16 @@
 import { t } from "elysia";
-import type { Users } from "../../db/db.d";
+import type { Users, DB } from "../../db/db.d";
 import bcrypt from "bcrypt";
-import type { AuthContext, LoginBody } from "../../types/auth";
+import type { LoginBody } from "../../types/auth";
 import { generateTokens, AUTH_CONFIG } from "../../config/auth";
+import { Kysely } from "kysely";
 
-export const loginHandler = async ({
-  body,
-  set,
-  db,
-}: AuthContext & { body: LoginBody }) => {
+export const loginHandler = async (context: {
+  body: LoginBody;
+  set: { status?: number | string };
+  db: Kysely<DB>;
+}) => {
+  const { body, set, db } = context;
   try {
     const { username, password } = body;
 
@@ -30,7 +32,7 @@ export const loginHandler = async ({
 
     const { accessToken, refreshToken } = generateTokens(
       Number(user.id!),
-      user.username!,
+      user.username!
     );
 
     await db
@@ -40,10 +42,10 @@ export const loginHandler = async ({
         refresh_token: refreshToken,
         auth_token: accessToken,
         auth_expires_at: new Date(
-          Date.now() + AUTH_CONFIG.ACCESS_TOKEN_EXPIRY_MS,
+          Date.now() + AUTH_CONFIG.ACCESS_TOKEN_EXPIRY_MS
         ).toISOString(),
         refresh_expires_at: new Date(
-          Date.now() + AUTH_CONFIG.REFRESH_TOKEN_EXPIRY_MS,
+          Date.now() + AUTH_CONFIG.REFRESH_TOKEN_EXPIRY_MS
         ).toISOString(),
       })
       .execute();
@@ -61,7 +63,41 @@ export const loginHandler = async ({
 
 export const loginSchema = {
   body: t.Object({
-    username: t.String(),
-    password: t.String(),
+    username: t.String({
+      description: "Username for authentication",
+      examples: ["johndoe", "admin", "testuser"],
+    }),
+    password: t.String({
+      description: "User password",
+      examples: ["password123", "mySecurePass!"],
+    }),
   }),
+  detail: {
+    tags: ["Authentication"],
+    summary: "User login",
+    description:
+      "Authenticate user with username and password. Returns JWT tokens for subsequent API calls.",
+  },
+  response: {
+    200: t.Object({
+      accessToken: t.String({
+        description: "JWT access token (expires in 15 minutes)",
+        examples: ["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."],
+      }),
+      refreshToken: t.String({
+        description: "JWT refresh token (expires in 7 days)",
+        examples: ["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."],
+      }),
+      user: t.Object({
+        id: t.Number({ examples: [1, 5, 12] }),
+        username: t.String({ examples: ["johndoe", "admin"] }),
+      }),
+    }),
+    401: t.Object({
+      message: t.String({ examples: ["Invalid credentials"] }),
+    }),
+    500: t.Object({
+      message: t.String({ examples: ["Internal server error"] }),
+    }),
+  },
 };

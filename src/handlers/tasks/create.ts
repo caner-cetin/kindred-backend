@@ -1,7 +1,9 @@
 import { t } from "elysia";
-import { type AuthContext } from "../../types/auth";
 import { Messages } from "../../constants/messages";
 import { broadcastTaskEvent } from "../../types/websocket";
+import type { Kysely } from "kysely";
+import type { DB } from "../../db/db.d.ts";
+import type { UserData } from "../../types/auth";
 
 export interface CreateTaskBody {
   title: string;
@@ -11,12 +13,13 @@ export interface CreateTaskBody {
   due_date?: string;
 }
 
-export const createTaskHandler = async ({
-  body,
-  set,
-  db,
-  user,
-}: AuthContext & { body: CreateTaskBody }) => {
+export const createTaskHandler = async (context: {
+  body: CreateTaskBody;
+  set: { status?: number | string };
+  db: Kysely<DB>;
+  user: UserData | null;
+}) => {
+  const { body, set, db, user } = context;
   if (!user) {
     set.status = 401;
     return { message: Messages.AUTH_REQUIRED };
@@ -137,10 +140,73 @@ export const createTaskHandler = async ({
 
 export const createTaskSchema = {
   body: t.Object({
-    title: t.String({ minLength: 1, maxLength: 255 }),
-    description: t.Optional(t.String({ maxLength: 1000 })),
-    priority_id: t.Optional(t.Number()),
-    assignee_id: t.Optional(t.Number()),
-    due_date: t.Optional(t.String()),
+    title: t.String({
+      minLength: 1,
+      maxLength: 255,
+      description: "Task title",
+      examples: [
+        "Fix login bug",
+        "Implement user dashboard",
+        "Write API documentation",
+      ],
+    }),
+    description: t.Optional(
+      t.String({
+        maxLength: 1000,
+        description: "Optional task description with more details",
+        examples: ["This task involves fixing the authentication flow..."],
+      })
+    ),
+    priority_id: t.Optional(
+      t.Number({
+        description:
+          "Priority ID (1=Low, 2=Medium, 3=High, 4=Critical). Get available priorities from /tasks/metadata",
+        examples: [2, 3],
+      })
+    ),
+    assignee_id: t.Optional(
+      t.Number({
+        description:
+          "User ID to assign this task to. Get available users from /tasks/metadata",
+        examples: [1, 5, 12],
+      })
+    ),
+    due_date: t.Optional(
+      t.String({
+        description: "Due date in ISO 8601 format (YYYY-MM-DDTHH:mm:ss.sssZ)",
+        examples: ["2024-12-31T23:59:59.000Z", "2024-01-15T09:00:00.000Z"],
+      })
+    ),
   }),
+  detail: {
+    tags: ["Tasks"],
+    summary: "Create a new task",
+    description:
+      "Creates a new task and assigns it to the specified user. Broadcasts the task creation event via WebSocket to all connected clients.",
+    security: [{ bearerAuth: [] }],
+  },
+  response: {
+    201: t.Object({
+      message: t.String({ examples: ["Task created successfully"] }),
+      task: t.Object({
+        id: t.Number(),
+        title: t.String(),
+        description: t.Union([t.String(), t.Null()]),
+        due_date: t.Union([t.String(), t.Null()]),
+        created_at: t.String(),
+        updated_at: t.String(),
+      }),
+    }),
+    400: t.Object({
+      message: t.String({
+        examples: ["Assignee not found", "Priority not found"],
+      }),
+    }),
+    401: t.Object({
+      message: t.String({ examples: ["Authentication required"] }),
+    }),
+    500: t.Object({
+      message: t.String({ examples: ["Internal server error"] }),
+    }),
+  },
 };

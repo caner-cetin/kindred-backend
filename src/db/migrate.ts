@@ -1,7 +1,7 @@
 import * as path from "path";
 import { promises as fs } from "fs";
 import { Kysely, Migrator, FileMigrationProvider } from "kysely";
-import { DB } from "./db";
+import type { DB } from "./db";
 import Database from "bun:sqlite";
 import { BunSqliteDialect } from "kysely-bun-sqlite";
 export async function migrateToLatest(db: Kysely<DB>) {

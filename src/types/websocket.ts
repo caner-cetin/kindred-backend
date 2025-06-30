@@ -17,18 +17,18 @@ export interface TaskEvent {
   type: TaskEventType;
   taskId: number;
   task?: {
-    id: number;
+    id: number | null;
     title: string;
-    description?: string;
-    due_date?: string;
+    description?: string | null;
+    due_date?: string | null;
     creator_id: number;
-    assignee_id?: number;
-    creator_username: string;
-    assignee_username?: string;
-    status: string;
-    priority?: string;
-    created_at: string;
-    updated_at: string;
+    assignee_id?: number | null;
+    creator_username: string | null;
+    assignee_username?: string | null;
+    status: string | null;
+    priority?: string | null;
+    created_at: string | null;
+    updated_at: string | null;
   };
   userId: number;
   timestamp: string;

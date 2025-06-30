@@ -1,8 +1,16 @@
+import { t } from "elysia";
 import jwt from "jsonwebtoken";
-import type { AuthContext, JwtPayload } from "../../types/auth";
+import type { JwtPayload } from "../../types/auth";
 import { generateTokens, AUTH_CONFIG } from "../../config/auth";
+import type { Kysely } from "kysely";
+import type { DB } from "../../db/db.d";
 
-export const refreshHandler = async ({ headers, set, db }: AuthContext) => {
+export const refreshHandler = async (context: {
+  headers: { authorization?: string };
+  set: { status?: number | string };
+  db: Kysely<DB>;
+}) => {
+  const { headers, set, db } = context;
   const refreshToken = headers["authorization"]?.split(" ")[1];
 
   if (!refreshToken) {
@@ -62,4 +70,36 @@ export const refreshHandler = async ({ headers, set, db }: AuthContext) => {
     set.status = 401;
     return { message: "Invalid refresh token" };
   }
+};
+
+export const refreshSchema = {
+  detail: {
+    tags: ["Authentication"],
+    summary: "Refresh access token",
+    description:
+      "Use a refresh token to get a new access token and refresh token pair. The refresh token should be provided in the Authorization header as Bearer token.",
+    security: [{ bearerAuth: [] }],
+  },
+  response: {
+    200: t.Object({
+      accessToken: t.String({
+        description: "New JWT access token (expires in 15 minutes)",
+        examples: ["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."],
+      }),
+      refreshToken: t.String({
+        description: "New JWT refresh token (expires in 7 days)",
+        examples: ["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."],
+      }),
+    }),
+    401: t.Object({
+      message: t.String({
+        examples: [
+          "Refresh token not provided",
+          "Invalid or expired refresh token",
+          "User not found",
+          "Invalid refresh token",
+        ],
+      }),
+    }),
+  },
 };

@@ -1,14 +1,17 @@
 import { t } from "elysia";
-import { type AuthContext } from "../../types/auth";
 import { Messages } from "../../constants/messages";
 import { broadcastTaskEvent } from "../../types/websocket";
+import type { Kysely } from "kysely";
+import type { DB } from "../../db/db.d";
+import type { UserData } from "../../types/auth";
 
-export const deleteTaskHandler = async ({
-  params,
-  set,
-  db,
-  user,
-}: AuthContext & { params: { id: string } }) => {
+export const deleteTaskHandler = async (context: {
+  params: { id: string };
+  set: { status?: number | string };
+  db: Kysely<DB>;
+  user: UserData | null;
+}) => {
+  const { params, set, db, user } = context;
   if (!user) {
     set.status = 401;
     return { message: Messages.AUTH_REQUIRED };
@@ -89,6 +92,30 @@ export const deleteTaskHandler = async ({
 
 export const deleteTaskSchema = {
   params: t.Object({
-    id: t.String(),
+    id: t.String({
+      description: "Task ID to delete",
+      examples: ["1", "5", "42"],
+    }),
   }),
+  detail: {
+    tags: ["Tasks"],
+    summary: "Delete task",
+    description:
+      "Delete an existing task. Only the task creator or assignee can delete a task.",
+    security: [{ bearerAuth: [] }],
+  },
+  response: {
+    200: t.Object({
+      message: t.String({ examples: ["Task deleted successfully"] }),
+    }),
+    400: t.Object({
+      message: t.String({ examples: ["Task not found", "Permission denied"] }),
+    }),
+    401: t.Object({
+      message: t.String({ examples: ["Authentication required"] }),
+    }),
+    500: t.Object({
+      message: t.String({ examples: ["Internal server error"] }),
+    }),
+  },
 };

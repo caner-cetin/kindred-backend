@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from "bun:test";
-import { App, createApp } from "../src/index";
+import type { App } from "../src/index";
+import { createApp } from "../src/index";
 import { treaty } from "@elysiajs/eden";
 
 describe("Auth", () => {

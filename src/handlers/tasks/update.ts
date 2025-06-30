@@ -1,23 +1,26 @@
 import { t } from "elysia";
-import type { AuthContext } from "../../types/auth";
 import { Messages } from "../../constants/messages";
 import { broadcastTaskEvent } from "../../types/websocket";
+import type { Kysely } from "kysely";
+import type { DB } from "../../db/db.d";
+import type { UserData } from "../../types/auth";
 
 export interface UpdateTaskBody {
   title?: string;
-  description?: string;
-  priority_id?: number;
-  assignee_id?: number;
-  due_date?: string;
+  description?: string | null;
+  priority_id?: number | null;
+  assignee_id?: number | null;
+  due_date?: string | null;
 }
 
-export const updateTaskHandler = async ({
-  body,
-  params,
-  set,
-  db,
-  user,
-}: AuthContext & { body: UpdateTaskBody; params: { id: string } }) => {
+export const updateTaskHandler = async (context: {
+  body: UpdateTaskBody;
+  params: { id: string };
+  set: { status?: number | string };
+  db: Kysely<DB>;
+  user: UserData | null;
+}) => {
+  const { body, params, set, db, user } = context;
   if (!user) {
     set.status = 401;
     return { message: Messages.AUTH_REQUIRED };
@@ -88,7 +91,7 @@ export const updateTaskHandler = async ({
     }
 
     // Build update object with only provided fields
-    const updateData: any = {
+    const updateData: Record<string, any> = {
       updated_at: new Date().toISOString(),
     };
 
@@ -164,13 +167,86 @@ export const updateTaskHandler = async ({
 
 export const updateTaskSchema = {
   body: t.Object({
-    title: t.Optional(t.String({ minLength: 1, maxLength: 255 })),
-    description: t.Optional(t.String({ maxLength: 1000 })),
-    priority_id: t.Optional(t.Union([t.Number(), t.Null()])),
-    assignee_id: t.Optional(t.Union([t.Number(), t.Null()])),
-    due_date: t.Optional(t.Union([t.String(), t.Null()])),
+    title: t.Optional(
+      t.String({
+        minLength: 1,
+        maxLength: 255,
+        description: "Updated task title",
+        examples: ["Fix critical login bug", "Implement user dashboard v2"],
+      })
+    ),
+    description: t.Optional(
+      t.String({
+        maxLength: 1000,
+        description: "Updated task description",
+        examples: ["Updated requirements for the login system..."],
+      })
+    ),
+    priority_id: t.Optional(
+      t.Union([t.Number(), t.Null()], {
+        description: "Updated priority ID (use null to remove priority)",
+        examples: [2, 3, null],
+      })
+    ),
+    assignee_id: t.Optional(
+      t.Union([t.Number(), t.Null()], {
+        description: "Updated assignee user ID (use null to unassign)",
+        examples: [5, 12, null],
+      })
+    ),
+    due_date: t.Optional(
+      t.Union([t.String(), t.Null()], {
+        description:
+          "Updated due date in ISO format (use null to remove due date)",
+        examples: ["2024-12-31T23:59:59.000Z", null],
+      })
+    ),
   }),
   params: t.Object({
-    id: t.String(),
+    id: t.String({
+      description: "Task ID to update",
+      examples: ["1", "5", "42"],
+    }),
   }),
+  detail: {
+    tags: ["Tasks"],
+    summary: "Update task",
+    description:
+      "Update an existing task. Only the task creator or assignee can update the task. Broadcasts the task update event via WebSocket to all connected clients.",
+    security: [{ bearerAuth: [] }],
+  },
+  response: {
+    200: t.Object({
+      message: t.String({ examples: ["Task updated successfully"] }),
+      task: t.Object({
+        id: t.Number(),
+        title: t.String(),
+        description: t.Union([t.String(), t.Null()]),
+        due_date: t.Union([t.String(), t.Null()]),
+        created_at: t.String(),
+        updated_at: t.String(),
+      }),
+    }),
+    400: t.Object({
+      message: t.String({
+        examples: [
+          "Invalid task ID",
+          "Assignee not found",
+          "Priority not found",
+        ],
+      }),
+    }),
+    401: t.Object({
+      message: t.String({ examples: ["Authentication required"] }),
+    }),
+    403: t.Object({
+      message: t.String({ examples: ["Permission denied"] }),
+    }),
+    404: t.Object({
+      message: t.String({ examples: ["Task not found"] }),
+    }),
+    500: t.Object({
+      message: t.String({ examples: ["Internal server error"] }),
+    }),
+  },
 };

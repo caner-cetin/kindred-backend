@@ -1,19 +1,22 @@
 import { t } from "elysia";
-import type { AuthContext } from "../../types/auth";
 import { Messages } from "../../constants/messages";
 import { broadcastTaskEvent } from "../../types/websocket";
+import type { Kysely } from "kysely";
+import type { DB } from "../../db/db.d";
+import type { UserData } from "../../types/auth";
 
 export interface UpdateTaskStatusBody {
   status: "To Do" | "In Progress" | "Completed";
 }
 
-export const updateTaskStatusHandler = async ({
-  body,
-  params,
-  set,
-  db,
-  user,
-}: AuthContext & { body: UpdateTaskStatusBody; params: { id: string } }) => {
+export const updateTaskStatusHandler = async (context: {
+  body: UpdateTaskStatusBody;
+  params: { id: string };
+  set: { status?: number | string };
+  db: Kysely<DB>;
+  user: UserData | null;
+}) => {
+  const { body, params, set, db, user } = context;
   if (!user) {
     set.status = 401;
     return { message: Messages.AUTH_REQUIRED };
@@ -131,13 +134,54 @@ export const updateTaskStatusHandler = async ({
 
 export const updateTaskStatusSchema = {
   body: t.Object({
-    status: t.Union([
-      t.Literal("To Do"),
-      t.Literal("In Progress"),
-      t.Literal("Completed"),
-    ]),
+    status: t.Union(
+      [t.Literal("To Do"), t.Literal("In Progress"), t.Literal("Completed")],
+      {
+        description: "New status for the task",
+        examples: ["To Do", "In Progress", "Completed"],
+      }
+    ),
   }),
   params: t.Object({
-    id: t.String(),
+    id: t.String({
+      description: "Task ID to update status for",
+      examples: ["1", "5", "42"],
+    }),
   }),
+  detail: {
+    tags: ["Tasks"],
+    summary: "Update task status",
+    description:
+      "Update the status of an existing task. Only the task creator or assignee can update the status. Broadcasts the status change event via WebSocket to all connected clients.",
+    security: [{ bearerAuth: [] }],
+  },
+  response: {
+    200: t.Object({
+      message: t.String({ examples: ["Task status updated successfully"] }),
+      task: t.Object({
+        id: t.Number(),
+        title: t.String(),
+        description: t.Union([t.String(), t.Null()]),
+        due_date: t.Union([t.String(), t.Null()]),
+        created_at: t.String(),
+        updated_at: t.String(),
+      }),
+      status: t.String({ examples: ["To Do", "In Progress", "Completed"] }),
+    }),
+    400: t.Object({
+      message: t.String({ examples: ["Invalid task ID", "Invalid status"] }),
+    }),
+    401: t.Object({
+      message: t.String({ examples: ["Authentication required"] }),
+    }),
+    403: t.Object({
+      message: t.String({ examples: ["Permission denied"] }),
+    }),
+    404: t.Object({
+      message: t.String({ examples: ["Task not found"] }),
+    }),
+    500: t.Object({
+      message: t.String({ examples: ["Internal server error"] }),
+    }),
+  },
 };
