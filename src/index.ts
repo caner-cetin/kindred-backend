@@ -19,6 +19,7 @@ import { Kysely } from "kysely";
 import Database from "bun:sqlite";
 import { DB } from "./db/db.d";
 import { BunSqliteDialect } from "kysely-bun-sqlite";
+import { swagger } from "@elysiajs/swagger";
 
 export const createApp = async (dbPath?: string) => {
   const actualDbPath =
@@ -36,7 +37,6 @@ export const createApp = async (dbPath?: string) => {
     }),
   });
 
-  // Run migrations on the same db instance
   await migrateToLatest(db);
 
   const app = new Elysia()
@@ -52,6 +52,7 @@ export const createApp = async (dbPath?: string) => {
       const user = await verifyAccessToken(token, db);
       return { user };
     })
+    .use(swagger())
     .use(cors())
     .post("/signup", signupHandler, signupSchema)
     .post("/login", loginHandler, loginSchema)

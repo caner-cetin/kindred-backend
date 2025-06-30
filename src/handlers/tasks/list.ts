@@ -1,4 +1,5 @@
 import { t } from "elysia";
+import { sql } from "kysely";
 import { AuthContext } from "../../types/auth";
 import { Messages } from "../../constants/messages";
 
@@ -8,7 +9,12 @@ export const listTasksHandler = async ({
   db,
   user,
 }: AuthContext & {
-  query: { status?: string; priority?: string; assignee?: string };
+  query: {
+    status?: string;
+    priority?: string;
+    assignee?: string;
+    search?: string;
+  };
 }) => {
   if (!user) {
     set.status = 401;
@@ -104,7 +110,6 @@ export const listTasksHandler = async ({
       .orderBy("tasks.created_at", "desc")
       .execute();
 
-    // Get summary statistics
     const stats = await db
       .selectFrom("tasks")
       .leftJoin("statuses", "tasks.status_id", "statuses.id")
@@ -149,6 +154,7 @@ export const listTasksSchema = {
       due_date_end: t.Optional(t.String()),
       created_at_start: t.Optional(t.String()),
       created_at_end: t.Optional(t.String()),
+      search: t.Optional(t.String()),
     })
   ),
 };

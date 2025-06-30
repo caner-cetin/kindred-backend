@@ -21,7 +21,6 @@ export const deleteTaskHandler = async ({
       return { message: Messages.INVALID_TASK_ID };
     }
 
-    // Check if task exists and user has permission to delete
     const existingTask = await db
       .selectFrom("tasks")
       .selectAll()
@@ -33,14 +32,12 @@ export const deleteTaskHandler = async ({
       return { message: Messages.TASK_NOT_FOUND };
     }
 
-    // Only creator can delete the task
     const userId = Number(user.id!);
     if (existingTask.creator_id !== userId) {
       set.status = 403;
       return { message: Messages.TASK_DELETE_CREATOR_ONLY };
     }
 
-    // Delete the task
     await db.deleteFrom("tasks").where("id", "=", taskId).execute();
 
     return {
