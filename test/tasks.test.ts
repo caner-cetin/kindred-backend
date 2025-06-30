@@ -194,6 +194,137 @@ describe("Tasks", () => {
       expect(data.tasks.every((task: any) => task.creator_username === "taskuser")).toBe(true);
     });
 
+    it("should filter tasks by title", async () => {
+      // Create a task with a unique title for this test
+      const { data: createdTaskData } = await api.tasks.post(
+        {
+          title: "Unique Task Title for Filtering",
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+          },
+        }
+      );
+
+      const { data, status } = await api.tasks.get({
+        query: { title: "Unique Task Title" },
+        headers: {
+          Authorization: `Bearer ${userToken}`,
+        },
+      });
+
+      expect(status).toEqual(200);
+      expect(data.tasks.length).toBeGreaterThan(0);
+      expect(data.tasks.every((task: any) => task.title.includes("Unique Task Title"))).toBe(true);
+    });
+
+    it("should filter tasks by due_date_start and due_date_end", async () => {
+      // Create tasks with specific due dates
+      const { data: task1Data } = await api.tasks.post(
+        {
+          title: "Task Due Today",
+          due_date: "2025-06-30T12:00:00Z",
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+          },
+        }
+      );
+
+      const { data: task2Data } = await api.tasks.post(
+        {
+          title: "Task Due Tomorrow",
+          due_date: "2025-07-01T12:00:00Z",
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+          },
+        }
+      );
+
+      const { data: task3Data } = await api.tasks.post(
+        {
+          title: "Task Due Next Week",
+          due_date: "2025-07-07T12:00:00Z",
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+          },
+        }
+      );
+
+      // Filter for tasks due between today and tomorrow
+      const { data, status } = await api.tasks.get({
+        query: {
+          due_date_start: "2025-06-30T00:00:00Z",
+          due_date_end: "2025-07-01T23:59:59Z",
+        },
+        headers: {
+          Authorization: `Bearer ${userToken}`,
+        },
+      });
+
+      expect(status).toEqual(200);
+      expect(data.tasks.length).toBeGreaterThanOrEqual(2);
+      expect(data.tasks.some((task: any) => task.title === "Task Due Today")).toBe(true);
+      expect(data.tasks.some((task: any) => task.title === "Task Due Tomorrow")).toBe(true);
+      expect(data.tasks.every((task: any) => new Date(task.due_date) >= new Date("2025-06-30T00:00:00Z") && new Date(task.due_date) <= new Date("2025-07-01T23:59:59Z"))).toBe(true);
+    });
+
+    it("should filter tasks by created_at_start and created_at_end", async () => {
+      // Create tasks with specific creation dates (adjusting for test execution time)
+      const { data: taskAData } = await api.tasks.post(
+        {
+          title: "Task Created Yesterday",
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+          },
+        }
+      );
+      // Simulate a slight delay for distinct creation times
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const { data: taskBData } = await api.tasks.post(
+        {
+          title: "Task Created Today",
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+          },
+        }
+      );
+
+      // Get current date and yesterday's date for filtering
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(today.getDate() - 1);
+
+      const created_at_start = yesterday.toISOString().split('T')[0] + 'T00:00:00Z';
+      const created_at_end = today.toISOString().split('T')[0] + 'T23:59:59Z';
+
+      const { data, status } = await api.tasks.get({
+        query: {
+          created_at_start,
+          created_at_end,
+        },
+        headers: {
+          Authorization: `Bearer ${userToken}`,
+        },
+      });
+
+      expect(status).toEqual(200);
+      expect(data.tasks.length).toBeGreaterThanOrEqual(2);
+      expect(data.tasks.some((task: any) => task.title === "Task Created Yesterday")).toBe(true);
+      expect(data.tasks.some((task: any) => task.title === "Task Created Today")).toBe(true);
+      expect(data.tasks.every((task: any) => new Date(task.created_at) >= new Date(created_at_start) && new Date(task.created_at) <= new Date(created_at_end))).toBe(true);
+    });
+
     it("should require authentication to list tasks", async () => {
       const { error, status } = await api.tasks.get();
 
