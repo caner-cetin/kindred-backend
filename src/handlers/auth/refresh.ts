@@ -1,7 +1,6 @@
 import jwt from "jsonwebtoken";
-import { AuthContext, JwtPayload } from "../../types/auth";
+import type { AuthContext, JwtPayload } from "../../types/auth";
 import { generateTokens, AUTH_CONFIG } from "../../config/auth";
-import { Sessions, Users } from "../../db/db.d";
 
 export const refreshHandler = async ({ headers, set, db }: AuthContext) => {
   const refreshToken = headers["authorization"]?.split(" ")[1];
@@ -14,7 +13,7 @@ export const refreshHandler = async ({ headers, set, db }: AuthContext) => {
   try {
     const decoded = jwt.verify(
       refreshToken,
-      AUTH_CONFIG.JWT_SECRET,
+      AUTH_CONFIG.JWT_SECRET
     ) as JwtPayload;
 
     const session = await db
@@ -48,10 +47,10 @@ export const refreshHandler = async ({ headers, set, db }: AuthContext) => {
         auth_token: newAccessToken,
         refresh_token: newRefreshToken,
         auth_expires_at: new Date(
-          Date.now() + AUTH_CONFIG.ACCESS_TOKEN_EXPIRY_MS,
+          Date.now() + AUTH_CONFIG.ACCESS_TOKEN_EXPIRY_MS
         ).toISOString(),
         refresh_expires_at: new Date(
-          Date.now() + AUTH_CONFIG.REFRESH_TOKEN_EXPIRY_MS,
+          Date.now() + AUTH_CONFIG.REFRESH_TOKEN_EXPIRY_MS
         ).toISOString(),
         updated_at: new Date().toISOString(),
       })

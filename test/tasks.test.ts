@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll } from "bun:test";
-import { App, createApp } from "../src/index";
+import { type App, createApp } from "../src/index";
 import { treaty } from "@elysiajs/eden";
 import { Messages } from "../src/constants/messages";
-import { Tasks } from "../src/db/db";
+import type { Tasks } from "../src/db/db";
 
 const api = treaty(await createApp(":memory:"));
 describe("Tasks", () => {
